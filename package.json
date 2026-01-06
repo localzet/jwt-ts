@@ -1,0 +1,24 @@
+{
+  "name": "@localzet/jwt",
+  "version": "0.1.0",
+  "description": "JWT library",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node dist/tests/runner.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "jwt",
+    "jws",
+    "jwe",
+    "jwa",
+    "typescript"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "typescript": "^5.0.0"
+  }
+}
