@@ -100,6 +100,7 @@ export class JWSService {
             if (e instanceof JoseHeaderError) throw new JWTClaimValidationError(e.message);
             throw e;
         }
+        if (header.alg === 'none') throw new InvalidSignatureError();
         if (options.expectedAlg && header.alg !== options.expectedAlg) throw new JWTClaimValidationError('Unexpected alg');
         if (options.expectedTyp && header.typ !== options.expectedTyp) throw new JWTClaimValidationError('Unexpected typ');
 
@@ -183,10 +184,8 @@ export class JWSService {
 
             // Determine algorithm from merged header (protected overrides unprotected)
             const alg = merged.alg as string | undefined;
-            if (alg === 'none') {
-                if (sig.signature && sig.signature !== '') throw new InvalidSignatureError();
-                continue;
-            }
+            // An empty unsecured signature cannot authenticate a general JWS.
+            if (alg === 'none') throw new InvalidSignatureError();
 
             const encodedProt = base64urlEncode(JSON.stringify(prot));
             const signingInput = options.detachedPayload ? Buffer.concat([Buffer.from(encodedProt + '.', 'ascii'), payloadBuf]) : Buffer.from(`${encodedProt}.${obj.payload}`);
