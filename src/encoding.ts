@@ -9,12 +9,15 @@ export function base64urlEncode(input: Buffer | string): string {
 }
 
 export function base64urlDecode(input: string): Buffer {
+    if (!/^[A-Za-z0-9_-]*$/.test(input)) throw new Error('Invalid base64url string');
     let str = input.replace(/-/g, '+').replace(/_/g, '/');
     const pad = str.length % 4;
     if (pad === 2) str += '==';
     else if (pad === 3) str += '=';
     else if (pad !== 0) throw new Error('Invalid base64url string');
-    return Buffer.from(str, 'base64');
+    const decoded = Buffer.from(str, 'base64');
+    if (base64urlEncode(decoded) !== input) throw new Error('Non-canonical base64url string');
+    return decoded;
 }
 
 // Convert ECDSA DER signature to JOSE (r||s) of fixed length

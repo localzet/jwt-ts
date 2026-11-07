@@ -27,7 +27,9 @@ const HMAC = (hash: string): Signer => ({
     },
     verify(payload: Buffer, signature: Buffer, key) {
         const sig = (this.sign as any)(payload, key) as Buffer;
-        return crypto.timingSafeEqual(sig, signature);
+        // timingSafeEqual throws when lengths differ; a malformed signature
+        // must be a normal verification failure, not an application error.
+        return sig.length === signature.length && crypto.timingSafeEqual(sig, signature);
     }
 });
 

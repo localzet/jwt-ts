@@ -104,6 +104,10 @@ export class JWTService {
             if (e instanceof JoseHeaderError) throw new JWTClaimValidationError(e.message);
             throw e;
         }
+        // An unsecured JWT is never proof of authenticity.
+        if (header.alg === 'none') {
+            throw new InvalidSignatureError();
+        }
         const payload = JSON.parse(base64urlDecode(parts[1]).toString('utf8')) as JWTPayload;
 
         // Validate registered claim types per RFC 7519
@@ -146,13 +150,9 @@ export class JWTService {
         } else resolvedKey = key;
         if (typeof resolvedKey === 'object' && (resolvedKey.kty || resolvedKey.crv)) resolvedKey = jwkToKeyObject(resolvedKey as JWK);
 
-        // If alg is 'none', signature MUST be empty per JWS
-        if (header.alg === 'none') {
-            if (parts[2] !== '') throw new InvalidSignatureError();
-        } else {
-            const ok = await Promise.resolve(signer.verify(signingInput, signature, resolvedKey));
-            if (!ok) throw new InvalidSignatureError();
-        }
+        // Only signed tokens may be verified. To inspect unsecured input use decode().
+        const ok = await Promise.resolve(signer.verify(signingInput, signature, resolvedKey));
+        if (!ok) throw new InvalidSignatureError();
 
         const now = Math.floor(Date.now() / 1000);
         const tol = options.clockTolerance ?? 0;
