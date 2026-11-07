@@ -144,6 +144,9 @@ export class JWSService {
     }
 
     async signGeneral(payload: object | string | Buffer, signers: SignerInput[], opts: { detached?: boolean } = {}) {
+        if (!Array.isArray(signers) || signers.length === 0) {
+            throw new JWTClaimValidationError('General JWS requires at least one signer');
+        }
         const payloadBuf = typeof payload === 'string' ? Buffer.from(payload, 'utf8') : Buffer.isBuffer(payload) ? payload : Buffer.from(JSON.stringify(payload), 'utf8');
         const encodedPayload = opts.detached ? '' : base64urlEncode(payloadBuf);
         const signatures: GeneralJWS[] = [];
@@ -155,6 +158,9 @@ export class JWSService {
             } catch (e) {
                 if (e instanceof JoseHeaderError) throw new JWTClaimValidationError(e.message);
                 throw e;
+            }
+            if (sInput.header && Object.keys(sInput.header).some(name => Object.prototype.hasOwnProperty.call(prot, name))) {
+                throw new JWTClaimValidationError('Duplicate protected and unprotected JWS header parameter');
             }
             const encodedProt = base64urlEncode(JSON.stringify(prot));
             const signingInput = opts.detached ? Buffer.concat([Buffer.from(encodedProt + '.', 'ascii'), payloadBuf]) : Buffer.from(`${encodedProt}.${encodedPayload}`);
@@ -168,13 +174,30 @@ export class JWSService {
     }
 
     async verifyGeneral(obj: { payload: string; signatures: GeneralJWS[] }, keyOrLookup: any | ((header: any) => any | Promise<any>), options: { expectedTyp?: string; detachedPayload?: Buffer | string } = {}) {
+        if (!obj || !Array.isArray(obj.signatures) || obj.signatures.length === 0) {
+            throw new JWTClaimValidationError('General JWS requires at least one signature');
+        }
         const payloadBuf = options.detachedPayload ? (typeof options.detachedPayload === 'string' ? Buffer.from(options.detachedPayload, 'utf8') : options.detachedPayload as Buffer) : base64urlDecode(obj.payload);
         const payload = (() => {
             try { return JSON.parse(payloadBuf.toString('utf8')); } catch { return payloadBuf; }
         })();
         for (const sig of obj.signatures) {
-            const prot = sig.protected || {};
-            const merged = Object.assign({}, prot, sig.header || {});
+            if (!sig || typeof sig !== 'object' || !sig.protected || typeof sig.protected !== 'object' || Array.isArray(sig.protected)) {
+                throw new JWTClaimValidationError('Missing protected JWS header');
+            }
+            const prot = sig.protected;
+            const unprotected = sig.header || {};
+            if (typeof unprotected !== 'object' || Array.isArray(unprotected)) {
+                throw new JWTClaimValidationError('Invalid unprotected JWS header');
+            }
+            if (typeof prot.alg !== 'string' || Object.keys(unprotected).some(name => Object.prototype.hasOwnProperty.call(prot, name))) {
+                throw new JWTClaimValidationError('Invalid or duplicate JWS algorithm/header parameter');
+            }
+            if (typeof sig.signature !== 'string' || sig.signature.length === 0) {
+                throw new InvalidSignatureError();
+            }
+            // Never let an unprotected parameter override a signed one.
+            const merged = Object.assign({}, unprotected, prot);
             try {
                 validateJoseHeaders(merged, { context: 'jws', enforceUnknown: 'reject', allowedExtensions: new Set(['b64']), expectedTyp: options.expectedTyp ?? null });
             } catch (e) {
