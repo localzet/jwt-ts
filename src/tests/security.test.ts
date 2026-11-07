@@ -24,6 +24,26 @@ async function run() {
     ]);
     await assert.rejects(verifyGeneral(unsignedGeneral, secret), InvalidSignatureError);
 
+    // A JWS with an empty signature list must never be reported as verified.
+    await assert.rejects(verifyGeneral({ payload: '', signatures: [] }, secret), /at least one signature/);
+    await assert.rejects(signGeneral({ sub: 'admin' }, []), /at least one signer/);
+
+    const signedGeneral = await signGeneral({ sub: 'user' }, [
+        { key: secret, protectedHeader: { alg: 'HS256', kid: 'trusted' } },
+    ]);
+    // Changing unprotected kid must not hijack a trusted key resolver.
+    const tamperedGeneral = {
+        ...signedGeneral,
+        signatures: signedGeneral.signatures.map(sig => ({
+            ...sig,
+            header: { kid: 'attacker' },
+        })),
+    };
+    await assert.rejects(verifyGeneral(tamperedGeneral, secret), /duplicate/i);
+    await assert.rejects(signGeneral({ sub: 'user' }, [
+        { key: secret, protectedHeader: { alg: 'HS256' }, header: { alg: 'HS256' } },
+    ]), /Duplicate/i);
+
     const parts = token.split('.');
     parts[2] = 'AA'; // A valid base64url encoding but the wrong HMAC length.
     await assert.rejects(verify(parts.join('.'), secret), InvalidSignatureError);
