@@ -6,6 +6,8 @@ import './jwe.test';
 import './jwk.test';
 import './jwt.test';
 import './claim_and_none.test';
+import './jwks.test';
+import './security.test';
 import './jwe_cbc.test';
 
 // If tests call process.exit on failure, requiring them is sufficient.
